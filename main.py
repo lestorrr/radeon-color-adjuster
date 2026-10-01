@@ -235,7 +235,7 @@ X-GNOME-Autostart-enabled=true
 """
             with open(AUTOSTART_FILE, 'w') as f:
                 f.write(content)
-            os.chmod(AUTOSTART_FILE, 0o755)
+            os.chmod(AUTOSTART_FILE, 0o644)
         except Exception as e:
             print("Error creating autostart:", e)
     else:
@@ -246,25 +246,46 @@ X-GNOME-Autostart-enabled=true
                 print("Error removing autostart:", e)
 
 # ----------------- COMMAND LINE APPLY MODE -----------------
+# Saved values are raw slider positions (percent, Kelvin). Same ranges as the GUI sliders.
+SLIDER_RANGES = {
+    "temperature": (4000, 10000, 6500),
+    "brightness": (20, 150, 100),
+    "contrast": (50, 150, 100),
+    "saturation": (0, 200, 100),
+    "vibrance": (0, 200, 100),
+    "r_gamma": (50, 200, 100),
+    "g_gamma": (50, 200, 100),
+    "b_gamma": (50, 200, 100),
+}
+
+def saved_value(d_cfg, key):
+    val_min, val_max, default = SLIDER_RANGES[key]
+    try:
+        val = float(d_cfg.get(key, default))
+    except (TypeError, ValueError):
+        val = default
+    return min(max(val, val_min), val_max)
+
 if len(sys.argv) > 1 and sys.argv[1] in ["--apply", "-a"]:
     config = load_config()
     connected = get_connected_displays()
-    
+
     for display in connected:
         if display in config["displays"]:
             d_cfg = config["displays"][display]
             has_ctm = check_ctm_support(display)
+            # Convert percentages to factors exactly like trigger_apply() does in the GUI
             apply_display_settings(
                 display=display,
                 enabled=d_cfg.get("enabled", True),
-                brightness=d_cfg.get("brightness", 1.0),
-                temp=d_cfg.get("temperature", 6500),
-                r_gamma=d_cfg.get("r_gamma", 1.0),
-                g_gamma=d_cfg.get("g_gamma", 1.0),
-                b_gamma=d_cfg.get("b_gamma", 1.0),
-                saturation=d_cfg.get("saturation", 1.0),
-                vibrance=d_cfg.get("vibrance", 1.0),
-                contrast=d_cfg.get("contrast", 1.0),
+                brightness=saved_value(d_cfg, "brightness") / 100.0,
+                temp=saved_value(d_cfg, "temperature"),
+                r_gamma=saved_value(d_cfg, "r_gamma") / 100.0,
+                g_gamma=saved_value(d_cfg, "g_gamma") / 100.0,
+                b_gamma=saved_value(d_cfg, "b_gamma") / 100.0,
+                saturation=saved_value(d_cfg, "saturation") / 100.0 if has_ctm else 1.0,
+                vibrance=saved_value(d_cfg, "vibrance") / 100.0 if has_ctm else 1.0,
+                contrast=saved_value(d_cfg, "contrast") / 100.0,
                 has_ctm=has_ctm
             )
     sys.exit(0)
